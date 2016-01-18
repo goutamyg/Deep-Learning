@@ -15,14 +15,7 @@ for i = 1:length(x)
 end
 
 % Initialization Point
-xy_init = [3.5,0.5];  
-
-% Plotting the function
-figure(),mesh(y, x, f);
-xlabel('Y-Axis')
-ylabel('X-Axis')
-hold on
-scatter3(xy_init(2),xy_init(1),function_eval(xy_init(1),xy_init(2)),'ok','filled')
+xy_init = [3,-0.5];  
 
 % Set the grid resolution
 dx = 0.001; % grid resolution for x-axis 
@@ -30,7 +23,7 @@ dy = 0.001; % grid resolution for y-axis
 
 %% Gradient Descent
 
-alpha = 0.01; % Learning rate
+eta = 0.01; % Learning rate
 xy_old = xy_init;
 max_iter = 1000;
 eps = 10^-5;
@@ -38,8 +31,7 @@ grad_desc_steps = []; % Tracking the path of Gradient Descent
 
 for i = 1:max_iter
     
-    grad_f = computeGradient(xy_old,dx,dy); % Compute gradient
-    xy_new = xy_old - alpha*grad_f; % Descent step
+    xy_new = gradientDescent(xy_old,eta,dx,dy); % Computing gradient descent step
     
     grad_desc_steps = [grad_desc_steps; xy_new];
     
@@ -68,10 +60,8 @@ newton_steps = []; % Tracking the path of Newton method
 
 for i = 1:max_iter
     
-    grad_xy = computeGradient(xy_old,dx,dy);
-    hessian_xy = computeHessian(xy_old,dx,dy);
-    
-    xy_new = xy_old - (hessian_xy\grad_xy')';
+    xy_new = newtonsMethod(xy_old,dx,dy); % Computing Newton step
+
     newton_steps = [newton_steps; xy_new];
     
     if(i == max_iter)
@@ -99,13 +89,8 @@ SFN_steps = []; % Tracking the path of SFN
 
 for i = 1:max_iter
     
-    grad_xy = computeGradient(xy_old,dx,dy);
-    hessian_xy = computeHessian(xy_old,dx,dy);
+    xy_new = saddleFreeNewton(xy_old,dx,dy); % compuitng SFN step
     
-    [eigvec_hessian, eigval_hessian] = eig(hessian_xy);
-    new_hessian_xy = eigvec_hessian*abs(eigval_hessian)*eigvec_hessian';
-    
-    xy_new = xy_old - (new_hessian_xy\grad_xy')';
     SFN_steps = [SFN_steps; xy_new];
     
     if(i == max_iter)
@@ -125,24 +110,94 @@ for i = 1:max_iter
     
 end
 
+%% Gradient Descent with Momentum
+
+eta = 0.01; % Learning rate
+p = 0.9; % Momentum Parameter
+xy_old = xy_init;
+delta_xy_old = zeros(size(xy_old)); 
+max_iter = 1000;
+eps = 10^-5;
+grad_desc_with_momentum_steps = []; % Tracking the path of Gradient Descent
+
+for i = 1:max_iter
+    
+    xy_new = gradientDescentWithMomentum(xy_old,eta,dx,dy,p,delta_xy_old); % Computing gradient descent step
+    
+    grad_desc_with_momentum_steps = [grad_desc_with_momentum_steps; xy_new];
+    
+    if(i == max_iter)    
+        disp('Gradient Descent with Momentum: termination after max iteration')
+        
+    elseif(norm(xy_new - xy_old) < eps)
+        disp('Gradient Descent with Momentum: termination due to convergence')
+        break
+        
+    elseif((abs(xy_new(1))> x_range) || (abs(xy_new(2))> y_range))
+        disp('Gradient Descent with Momentum: termination due to out of range')
+        break
+    end
+    
+    % Re-initialization for next iteration
+    delta_xy_old = xy_new - xy_old;
+    xy_old = xy_new;
+end
+
+%% RMS-Prop
+
+eta = 0.01; % Learning rate
+xy_old = xy_init;
+max_iter = 1000;
+eps = 10^-5;
+rmsprop_steps = []; % Tracking the path of Gradient Descent
+num_previous_grad = 5; % Number of previous gradients under consideration
+grad_history = zeros(num_previous_grad,2);
+
+for i = 1:max_iter
+    
+    [grad_f,xy_new] = rmsprop(xy_old,eta,dx,dy,grad_history); % Computing rmsprop step
+    
+    rmsprop_steps = [rmsprop_steps; xy_new];
+    
+    if(i == max_iter)    
+        disp('RMS-Prop: termination after max iteration')
+        
+    elseif(norm(xy_new - xy_old) < eps)
+        disp('RMS-Prop: termination due to convergence')
+        break
+        
+    elseif((abs(xy_new(1))> x_range) || (abs(xy_new(2))> y_range))
+        disp('RMS-Prop: termination due to out of range')
+        break
+    end
+    
+    % Re-initialization for next iteration
+    xy_old = xy_new;
+    grad_history = circshift(grad_history,1,1);
+    grad_history(1,:) = grad_f;
+    
+end
+
 %% Plot the results
 
+% Plotting the function
+figure(),mesh(y, x, f);
+xlabel('Y-Axis')
+ylabel('X-Axis')
+hold on
+scatter3(xy_init(2),xy_init(1),function_eval(xy_init(1),xy_init(2)),'ok','filled')
+
 % Plotting Gradient Descent Results
-[r,~] = size(grad_desc_steps);
-for i = 1:r
-    scatter3(grad_desc_steps(i,2),grad_desc_steps(i,1),...
-        function_eval(grad_desc_steps(i,1),grad_desc_steps(i,2)),'or','filled')
-end
+plotPath(grad_desc_steps,'or')
 
 % Plotting Newton Method results
-[r,~] = size(newton_steps);
-for i = 1:r
-    scatter3(newton_steps(i,2),newton_steps(i,1),...
-        function_eval(newton_steps(i,1),newton_steps(i,2)),'og','filled')
-end
+plotPath(newton_steps,'og')
 
 % Plotting SFN results
-[r,~] = size(SFN_steps);
-for i = 1:r
-    scatter3(SFN_steps(i,2),SFN_steps(i,1),function_eval(SFN_steps(i,1),SFN_steps(i,2)),'ob','filled')
-end
+plotPath(SFN_steps,'ob')
+
+% Plotting Gradient Descent with Momentum Results
+plotPath(grad_desc_with_momentum_steps,'oc')
+
+% Plotting RMS-Prop results
+plotPath(rmsprop_steps,'om')
